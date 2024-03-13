@@ -2,13 +2,18 @@
 <html>
 <head>
   <title>单词记忆工具</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 20px;
-      background-color: #f5f5f5;
+      background-color: #f5f5dc;
       text-align: center;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     h1 {
       color: #333;
@@ -27,8 +32,8 @@
       margin-bottom: 20px;
     }
     button {
-      padding: 10px 20px;
-      font-size: 16px;
+      padding: 8px 16px;
+      font-size: 14px;
       background-color: #4CAF50;
       color: white;
       border: none;
@@ -39,12 +44,12 @@
       background-color: #45a049;
     }
     .container {
-      max-width: 600px;
+      max-width: 800px;
       margin: 0 auto;
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
     #congratulationsMessage {
       display: none;
@@ -87,6 +92,13 @@
     #clearCacheBtn:hover {
       background-color: #d32f2f;
     }
+    .stats-container {
+      margin-top: 20px;
+      text-align: left;
+    }
+    .stats-container p {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -98,13 +110,15 @@
       <button id="showTranslation">显示翻译</button>
     </div>
     <div class="score-buttons" id="scoreButtons">
-      <button data-score="0">完全不记得 (1)</button>
-      <button data-score="1">有点印象 (2)</button>
-      <button data-score="2">记得 (3)</button>
+      <button data-score="0">完全不记得</button>
+      <button data-score="1">有点印象</button>
+      <button data-score="2">记得</button>
     </div>
     <div>
       <button id="addWordBtn">添加单词</button>
       <button id="viewWordListBtn">查看单词表</button>
+      <button id="viewStatsBtn">查看数据统计</button>
+      <button id="changeBackgroundBtn">更改背景图片</button>
       <button id="clearCacheBtn">清除缓存</button>
     </div>
     <div id="congratulationsMessage">恭喜！所有单词均已记忆完成</div>
@@ -139,19 +153,33 @@
     <button id="returnToMemoryFromListBtn">返回背诵</button>
   </div>
 
+  <div id="statsContainer" class="page-container">
+    <h2>数据统计</h2>
+    <div class="stats-container">
+      <p>单词总数: <span id="totalWordsCount"></span></p>
+      <p>已记忆单词数: <span id="memorizedWordsCount"></span></p>
+      <p>平均记忆时长: <span id="averageMemoryDuration"></span> 秒</p>
+      <p>最难记忆的单词:</p>
+      <ul id="difficultWordsList"></ul>
+    </div>
+    <button id="returnToMemoryFromStatsBtn">返回背诵</button>
+  </div>
+
   <script>
     let wordList = [];
     let currentIndex = 0;
+    let memoryStartTime;
 
     function showWord() {
       const wordElement = document.getElementById('word');
       const translationElement = document.getElementById('translation');
 
-      if (wordList.length > 0 && !isAllWordsMemorized()) {
+      if (wordList.length > 0) {
         wordElement.textContent = wordList[currentIndex].word;
         translationElement.textContent = '';
+        memoryStartTime = Date.now();
       } else {
-        wordElement.textContent = '';
+        wordElement.textContent = '单词列表为空';
         translationElement.textContent = '';
       }
     }
@@ -162,35 +190,29 @@
     }
 
     function nextWord() {
-      if (wordList.length > 0 && !isAllWordsMemorized()) {
+      if (wordList.length > 0) {
+        const elapsedTime = (Date.now() - memoryStartTime) / 1000;
+        wordList[currentIndex].memoryDuration = elapsedTime;
+
         currentIndex = (currentIndex + 1) % wordList.length;
-        while (wordList[currentIndex].memoryScore >= 1) {
+        while (wordList[currentIndex].memoryScore >= 2) {
           currentIndex = (currentIndex + 1) % wordList.length;
         }
         showWord();
-      } else {
-        checkAllWordsMemorized();
       }
     }
 
     function updateMemoryScore(score) {
       if (score === 0) {
         wordList[currentIndex].memoryScore = 0;
-      } else if (score === 1) {
-        wordList[currentIndex].memoryScore = Math.max(wordList[currentIndex].memoryScore - 0.3, 0);
       } else if (score === 2) {
-        wordList[currentIndex].memoryScore = Math.min(wordList[currentIndex].memoryScore + 0.5, 1);
+        wordList[currentIndex].memoryScore++;
       }
 
-      if (wordList[currentIndex].memoryScore < 1) {
-        nextWord();
+      if (currentIndex === wordList.length - 1) {
+        checkAllWordsMemorized();
       } else {
-        currentIndex = (currentIndex + 1) % wordList.length;
-        if (!isAllWordsMemorized()) {
-          showWord();
-        } else {
-          checkAllWordsMemorized();
-        }
+        nextWord();
       }
 
       saveWordList();
@@ -203,7 +225,7 @@
       const translation = translationInput.value.trim();
 
       if (word !== '' && translation !== '') {
-        wordList.push({ word, translation, memoryScore: 0 });
+        wordList.push({ word, translation, memoryScore: 0, memoryDuration: 0 });
         wordInput.value = '';
         translationInput.value = '';
         saveWordList();
@@ -223,17 +245,12 @@
       }
     }
 
-    function isAllWordsMemorized() {
-      return wordList.every(word => word.memoryScore >= 1);
-    }
-
     function checkAllWordsMemorized() {
-      if (isAllWordsMemorized()) {
+      const allMemorized = wordList.every(word => word.memoryScore >= 1);
+      if (allMemorized) {
         showCongratulationsMessage();
-        hideWordContainer();
       } else {
         hideCongratulationsMessage();
-        showWordContainer();
       }
     }
 
@@ -247,16 +264,6 @@
       congratulationsMessage.style.display = 'none';
     }
 
-    function hideWordContainer() {
-      const wordContainer = document.querySelector('.word-container');
-      wordContainer.style.display = 'none';
-    }
-
-    function showWordContainer() {
-      const wordContainer = document.querySelector('.word-container');
-      wordContainer.style.display = 'block';
-    }
-
     function loadWordsFromCSV(event) {
       const file = event.target.files[0];
       const reader = new FileReader();
@@ -267,13 +274,12 @@
 
         wordList = lines.filter(line => line.trim() !== '').map(line => {
           const [word, translation] = line.split(',');
-          return { word: word.trim(), translation: translation.trim(), memoryScore: 0 };
+          return { word: word.trim(), translation: translation.trim(), memoryScore: 0, memoryDuration: 0 };
         });
 
         saveWordList();
         showWord();
         hideCongratulationsMessage();
-        showWordContainer();
       };
 
       reader.readAsText(file);
@@ -321,20 +327,43 @@
       currentIndex = 0;
       showWord();
       hideCongratulationsMessage();
-      showWordContainer();
-      document.getElementById('csvFileInput').value = '';
     }
 
-    function handleKeyPress(event) {
-      if (event.key === 'Enter') {
-        showTranslation();
-      } else if (event.key === '1') {
-        updateMemoryScore(0);
-      } else if (event.key === '2') {
-        updateMemoryScore(1);
-      } else if (event.key === '3') {
-        updateMemoryScore(2);
+    function changeBackgroundImage() {
+      const imageUrl = prompt('请输入背景图片的URL:');
+      if (imageUrl) {
+        document.body.style.backgroundImage = `url('${imageUrl}')`;
       }
+    }
+
+    function viewStats() {
+      const totalWordsCount = document.getElementById('totalWordsCount');
+      const memorizedWordsCount = document.getElementById('memorizedWordsCount');
+      const averageMemoryDuration = document.getElementById('averageMemoryDuration');
+      const difficultWordsList = document.getElementById('difficultWordsList');
+
+      totalWordsCount.textContent = wordList.length;
+      memorizedWordsCount.textContent = wordList.filter(word => word.memoryScore >= 1).length;
+
+      const totalMemoryDuration = wordList.reduce((sum, word) => sum + word.memoryDuration, 0);
+      const averageDuration = (totalMemoryDuration / wordList.length).toFixed(2);
+      averageMemoryDuration.textContent = isNaN(averageDuration) ? '0' : averageDuration;
+
+      const difficultWords = wordList.filter(word => word.memoryScore === 0);
+      difficultWordsList.innerHTML = '';
+      difficultWords.forEach(word => {
+        const listItem = document.createElement('li');
+        listItem.textContent = word.word;
+        difficultWordsList.appendChild(listItem);
+      });
+
+      document.querySelector('.container').style.display = 'none';
+      document.getElementById('statsContainer').style.display = 'block';
+    }
+
+    function returnToMemoryFromStats() {
+      document.getElementById('statsContainer').style.display = 'none';
+      document.querySelector('.container').style.display = 'block';
     }
 
     function init() {
@@ -354,7 +383,9 @@
       document.getElementById('returnToMemoryBtn').addEventListener('click', returnToMemoryFromAddWord);
       document.getElementById('returnToMemoryFromListBtn').addEventListener('click', returnToMemoryFromList);
       document.getElementById('clearCacheBtn').addEventListener('click', clearCache);
-      document.addEventListener('keydown', handleKeyPress);
+      document.getElementById('changeBackgroundBtn').addEventListener('click', changeBackgroundImage);
+      document.getElementById('viewStatsBtn').addEventListener('click', viewStats);
+      document.getElementById('returnToMemoryFromStatsBtn').addEventListener('click', returnToMemoryFromStats);
     }
 
     document.addEventListener('DOMContentLoaded', init);
